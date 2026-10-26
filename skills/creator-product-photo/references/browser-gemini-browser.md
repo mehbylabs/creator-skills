@@ -31,8 +31,25 @@ Antigravity's browser agent, or OS-level computer use) and a signed-in Google ac
    If `adopt` is unavailable, `mv` it and check the real format with `file`.
 8. Look at the image. If it misses the brief, refine in the same chat with one change at a time.
 
+### Getting the bytes when driving via Chrome DevTools Protocol
+
+Clicking the download control needs a real mouse event, which raw CDP makes awkward.
+Two in-page recipes that work instead (the image `<img>` has `alt=", AI generated"`):
+
+- Canvas (most reliable): draw the img to a canvas and read `toDataURL('image/png')`,
+  then base64-decode client-side. The blob URL is same-origin, so the canvas isn't tainted.
+- `fetch(img.src)` on the blob URL can return `Failed to fetch` (blob revoked after
+  render) — don't rely on it.
+
+The composer is `div[contenteditable="true"][role="textbox"]` ("Enter a prompt for
+Gemini"); focus it and `document.execCommand('insertText', …)`; the send button is
+`button[aria-label="Send message"]`. No "New chat" button is visible on the app
+landing page — sending from it already starts a fresh chat.
+
 ## Known limits
 
 - Images may carry a visible Gemini watermark depending on the user's plan; SynthID is always present.
 - Aspect ratio is prompt-driven; re-ask once if it comes back square.
+- "No text" in the prompt is often ignored — the model loves putting signage in scene
+  illustrations. This is another reason the skills render real headlines locally.
 - Video in the Gemini app is plan-limited and short; prefer `flow-browser` for video.
