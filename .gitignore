@@ -1,0 +1,5 @@
+.env
+.env.*
+out/
+__pycache__/
+creator-skills.json

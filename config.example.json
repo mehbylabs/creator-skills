@@ -1,0 +1,18 @@
+{
+  "profile": "quality",
+  "order": {
+    "image": ["higgsfield", "google-api", "openai-api", "agy", "codex", "gemini-browser", "flow-browser"],
+    "video": ["higgsfield", "google-api", "flow-browser", "gemini-browser"]
+  },
+  "disabled": [],
+  "models": {},
+  "voices": {
+    "google-api": "Kore",
+    "openai-api": "marin"
+  },
+  "browser": {
+    "enabled": true,
+    "apps": ["gemini", "flow"],
+    "downloads_dir": "~/Downloads"
+  }
+}

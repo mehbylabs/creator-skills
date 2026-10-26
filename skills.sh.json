@@ -1,0 +1,21 @@
+{
+  "$schema": "https://skills.sh/schemas/skills.sh.schema.json",
+  "notGrouped": "bottom",
+  "groupings": [
+    {
+      "title": "Start here",
+      "description": "Detect your tools and set provider priority.",
+      "skills": ["creator-setup"]
+    },
+    {
+      "title": "Generate",
+      "description": "Images, video, and audio with automatic fallback across Higgsfield, Google, OpenAI, ElevenLabs, Antigravity, Codex, Gemini web, and Flow.",
+      "skills": ["creator-image", "creator-video", "creator-audio"]
+    },
+    {
+      "title": "Create",
+      "description": "Finished creator deliverables built on the generators.",
+      "skills": ["creator-thumbnail", "creator-product-photo", "creator-ad", "creator-explainer", "creator-character", "creator-brandkit"]
+    }
+  ]
+}

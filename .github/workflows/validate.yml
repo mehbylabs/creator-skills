@@ -1,0 +1,24 @@
+name: validate
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: python3 scripts/validate.py
+      - name: Smoke test router and local media ops
+        run: |
+          python3 shared/scripts/creator.py detect > /dev/null
+          for t in image video speech music sfx; do python3 shared/scripts/creator.py plan --task $t > /dev/null; done
+          ffmpeg -loglevel error -f lavfi -i color=c=navy:s=1280x720 -frames:v 1 /tmp/bg.png
+          python3 shared/scripts/media.py text --image /tmp/bg.png --out /tmp/t.png --text "HELLO"
+          python3 shared/scripts/media.py still --image /tmp/t.png --out /tmp/s.mp4 --duration 1
+          python3 shared/scripts/media.py probe /tmp/s.mp4
