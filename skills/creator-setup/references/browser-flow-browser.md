@@ -1,8 +1,10 @@
 # Playbook: Google Flow (computer use)
 
-Flow (`https://labs.google/fx/tools/flow`) is Google's filmmaking app on top of Veo and
-Google's image models. It is the best manual route for video and works for stills too.
-Requires a browser tool and a signed-in Google account with Flow access (credits apply).
+Flow (`https://flow.google.com`, formerly `labs.google/fx/tools/flow`) is Google's
+filmmaking app on top of Veo and Google's image models. It is the best manual route for
+video and works for stills too.
+Requires a browser tool and a signed-in Google account with Flow access (credits apply,
+e.g. AI Pro subscribers get a daily credit allowance).
 
 ## Rules
 
@@ -23,16 +25,37 @@ Requires a browser tool and a signed-in Google account with Flow access (credits
 
 ## Steps — video
 
-1. New project → choose the mode that fits:
-   - text only → text-to-video
-   - start (and optional end) still → frames-to-video
-   - characters/products/scenes to keep consistent → ingredients-to-video
-2. Settings: model (highest Veo tier the user has unless they asked to save credits),
-   aspect ratio (16:9 or 9:16), outputs = 1.
-3. Prompt with shot language: subject, action, camera move, lighting, audio cues, duration.
-4. Generate (often 1–5 min). Do not navigate away from the project meanwhile.
-5. Download the MP4 (upscaled version if offered and the user wants 1080p+), then move it
-   to the requested path and confirm with `ffprobe`.
+1. From the Flow home/library view (`flow.google.com`), use the bottom composer —
+   the project is created implicitly. The composer is a `div[contenteditable="true"]`
+   ("What do you want to create?"), NOT a textarea; the only real textarea on the page
+   is an invisible reCAPTCHA field.
+2. Click the model chip at the composer's right (e.g. "🍌 Nano Banana 2.1 · x2") to open
+   the settings popover. It has an **Image | Video** toggle — switching to **Video**
+   reveals the Veo tiers (Veo 3.1 - Lite / Fast / Quality, Omni 1.1 Flash). The
+   "Select model family" dropdown alone only lists image models.
+3. Set outputs to x1 unless variants were requested (saves credits). The popover shows
+   the exact credit cost before generating ("Generating will use N credits") — read it
+   out to the user before starting if there's no set budget.
+4. Paste the prompt (ratio also stated in words). Attach references as "ingredients"
+   with the + control if needed.
+5. Generate (often 1–5 min). Do not navigate away meanwhile. Progress shows as a % on
+   the media tile; the finished clip appears in the media grid.
+6. Click the tile to open the viewer, then the download control (top bar "Download
+   media"). It offers 270p GIF / **720p original (free)** / 1080p + 4K (paid upgrade).
+   720p original is the default choice.
+7. Move from `browser.downloads_dir` to the requested path:
+   `python3 scripts/creator.py adopt --src <file> --out <path>`, confirm with `ffprobe`.
+
+## Rules — driving Flow programmatically
+
+- **Synthetic DOM events are ignored by Flow** (dispatching `MouseEvent`/`click` or
+  setting `textarea.value` does nothing: send clicks land, nothing generates, the
+  prompt is silently cleared). Use the browser tool's *trusted input* — CDP
+  `Input.dispatchMouseEvent` + `Input.insertText`, Playwright's real click/fill, or
+  OS-level input. Verify the generation actually started (% progress on a tile) before
+  declaring the step done.
+- Navigate by snapshot/screenshot, never fixed coordinates. Labels are hints; the UI
+  changes (this playbook was verified against Flow's late-2026 rebuild).
 
 ## Known limits
 
