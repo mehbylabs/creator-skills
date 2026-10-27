@@ -46,6 +46,32 @@ Gemini"); focus it and `document.execCommand('insertText', …)`; the send butto
 `button[aria-label="Send message"]`. No "New chat" button is visible on the app
 landing page — sending from it already starts a fresh chat.
 
+### Gotchas seen in the late-2026 UI (verified)
+
+- **Browser zoom ≠ 100% breaks coordinates.** If clicks land ~100 px off what the DOM
+  reports, reset zoom (Ctrl+0) and confirm the screenshot height equals
+  `window.innerHeight`.
+- **An invisible consent overlay swallows every click and key** after the first upload
+  ("Creating content from images and files" → Cancel / Agree). If clicks do nothing,
+  check `document.elementFromPoint` for `.cdk-overlay-backdrop` and press **Agree**.
+- **Uploading files:** the `+` button is "Upload & tools" (or "Upload and tools" on some
+  accounts) → menu item "Upload files". Feed local paths with CDP
+  `Page.setInterceptFileChooserDialog` + `Page.fileChooserOpened` →
+  `DOM.setFileInputFiles({backendNodeId, files})`. DataTransfer injection into
+  `input[type=file]` is unreliable.
+- **Sending:** Enter in the composer does not always send. The trusted click on the send
+  arrow can lag several seconds; a JS `.click()` on `button[aria-label="Send message"]`
+  works. Verify the composer emptied before waiting for a result.
+- **Generated images may open in a full-screen editor** (Sketch / Text / Save) instead of
+  appearing inline. Use its top-bar download icon (direct JPEG, no menu), then press back.
+- **Don't navigate with `location.href`** between generations; it detaches the CDP
+  execution context. Click the sidebar "New chat" instead.
+- The `+` menu also offers **Create music** (Lyria): Length (Short / Standard ≈ 3 min),
+  Vocals (Instrumental), Genre; download via "Download track" → "Audio only MP3 track".
+- Gemini can **judge audio**: attach several voice takes and ask a native-dialect rubric
+  ("rate 1–10 how authentically Tunisian, which words drift"). That's useful for picking a
+  TTS voice when the user can't listen.
+
 ## Known limits
 
 - Images may carry a visible Gemini watermark depending on the user's plan; SynthID is always present.

@@ -57,6 +57,22 @@ e.g. AI Pro subscribers get a daily credit allowance).
 - Navigate by snapshot/screenshot, never fixed coordinates. Labels are hints; the UI
   changes (this playbook was verified against Flow's late-2026 rebuild).
 
+## Notes from production use (late 2026)
+
+- **Agent mode** may be on by default in new projects (an "Agent" chip with
+  `aria-pressed="true"`). Toggle it off to get the direct settings popover with model,
+  resolution, duration and output count.
+- Credit costs seen per 8 s clip at 720p, x1: Omni 1.1 Flash 6, Veo 3.1 Lite 10,
+  Fast 20, **Quality 100**. Quality is visibly better; on a paid plan
+  (e.g. 1,000+ credits) prefer it for hero shots.
+- Several prompts can be queued back to back; they render in parallel.
+- Failed generations are refunded automatically. A frequent cause is a minor in close-up
+  ("a child's hand"): rephrase ("a hand") and resubmit.
+- Each finished row has its own download button: a direct MP4 named after the prompt
+  (e.g. `Girl_solves_chess_puzzle_<timestamp>.mp4`), with no menu.
+- Switching Google accounts: avatar → "Switch account" → account chooser; Flow keeps its
+  own session separate from other Google tabs.
+
 ## Known limits
 
 - Clip length is capped per model (around 8 s per shot); longer pieces need several shots

@@ -68,8 +68,25 @@ and confident, natural Najdi Saudi accent, conversational pace"*). Save the retu
 under `voices["google-api:ar-SA"]`. Voice replication from a real person's recording
 requires that person's consent.
 
+## Tunisian (Tounsi) spelling: do and don't
+
+A script with mixed-dialect words produces a mixed accent, whatever the style prompt says.
+A real failure: a "Tunisian" script containing «الحوت» (fish), «حانة», «يقيسوا», «دوك» came out
+sounding Algerian/Egyptian.
+
+- Use: توّا (now), برشا (a lot), فمّا (there is), موش (not), علاش (why), كيفاش (how),
+  نجّم (can), متاعك (yours), برك (only), باهي (ok), ديما (always), السوم (price),
+  كارطة (card), وقتلّي (when), كان (if), باش (will / in order to), شويّة شويّة,
+  التلامذة, الإنقليزية, البي سي.
+- Avoid Egyptian (دلوقتي، عايز، كده، إزاي، بتاع، ببلاش) and Algerian (بزاف، واش، راني، درك، نتاع).
+- Stick to the brand's real facts: don't invent features to fill the runtime.
+
 ## Quality check
 
-Arabic dialect quality can't be verified by reading the file. Ask the user (or a native
+You can't verify Arabic dialect quality by reading the file. Ask the user (or a native
 speaker) to listen to the first line before generating the rest. If it drifts toward Fusha,
 fix the spelling first, then try the next provider in the Arabic order.
+
+When nobody can listen, generate the same line with 3 voices and ask Gemini (web or API,
+audio input) to act as a native-dialect judge: score each 1–10 and name the drifting
+words. Keep the top voice for every line.

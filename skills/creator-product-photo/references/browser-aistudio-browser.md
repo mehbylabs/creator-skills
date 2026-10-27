@@ -26,6 +26,23 @@ Arabic dialect voiceovers when the user has no `GEMINI_API_KEY`.
 7. Move it into place: `python3 scripts/creator.py adopt --src ~/Downloads/<file> --out vo/01.wav`.
 8. Repeat per paragraph with the **same** voice and style text.
 
+## Notes from production use (late 2026 UI)
+
+- The speech playground: "Create new dialog" → a speech block with **Speaker**, **Style**
+  and **Expression** chips. Type the style description in the Style popover and press
+  Enter; it persists for the session.
+- Voice picker: the "Speaker settings" card opens a library of 2,000+ voices grouped by
+  use case. Trusted clicks often miss the voice rows; a JS `.click()` on the voice's
+  `<button>` works. Confirm via the "Current voice" label.
+- For dialects, **audition several voices** with the same line and style text. The voice
+  matters as much as the prompt. For Tunisian, "Sami" scored 8.5/10 with a native-dialect
+  judge, versus 6.5 (Rami) and 4 (Knox).
+- The flagship model has a per-account daily quota. On a quota dialog, switch the model
+  to the Flash Lite TTS, which has its own quota, or use another signed-in account
+  (`/u/1/` URLs).
+- **Voice Design and Voice Replication need a paid API key with billing linked**. Don't
+  set up billing without the user's consent.
+
 ## Voice design (optional, once per dialect)
 
 Open the Voice Design area, describe the speaker (age, city/region, accent, tone, pace),
