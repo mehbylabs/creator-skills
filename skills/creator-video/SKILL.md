@@ -13,7 +13,7 @@ license: MIT
 compatibility: Python 3.9+ and ffmpeg. Video providers optional; stills fallback needs an image provider.
 allowed-tools: Bash Read
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
   argument-hint: "<prompt> [--start img] [--end img] [--ratio 16:9|9:16] [--duration 8]"
 ---
 

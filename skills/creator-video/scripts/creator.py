@@ -10,12 +10,14 @@ Subcommands (all print JSON on stdout):
   music  --prompt P --out F      Music track.
   sfx    --prompt P --out F      Sound effect.
   adopt  --src S --out F         Move a downloaded file into place, fixing format/extension.
+  tashkeel-check --text T        Arabic words that must get tashkeel before TTS (speech runs it too).
 
 Keys are read from the environment, then ./.env, then ~/.config/creator-skills/.env
 (see connect.py to add them safely).
 
 Stdlib only (Python 3.9+). Exit codes: 0 ok, 1 all failed, 2 bad usage,
-3 needs a manual (browser) provider, 4 blocked by content policy.
+3 needs a manual (browser) provider, 4 blocked by content policy,
+5 Arabic text needs tashkeel before TTS (nothing was sent).
 """
 from __future__ import annotations
 
@@ -94,7 +96,7 @@ PROVIDERS = {
         "image": {"refs": True, "transparent": True, "max": "4k"},
         "speech": {}}},
     "elevenlabs": {"kind": "api", "label": "ElevenLabs API (key)", "tasks": {
-        "speech": {}, "music": {}, "sfx": {}}},
+        "speech": {}, "music": {"max_s": 300}, "sfx": {}}},
     "google-cloud-tts": {"kind": "api", "label": "Google Cloud Text-to-Speech (gcloud auth)", "tasks": {
         "speech": {}}},
     "azure-tts": {"kind": "api", "label": "Azure AI Speech (key + region)", "tasks": {
@@ -249,6 +251,16 @@ def google_key() -> str | None:
     return os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
 
 
+BROWSER_APPS = ("gemini", "flow", "aistudio")
+
+
+def browser_enabled(cfg: dict, pid: str) -> bool:
+    """Computer-use providers are ON by default; the user opts out with browser.enabled: false
+    or by narrowing browser.apps."""
+    browser = cfg.get("browser", {})
+    return browser.get("enabled", True) is not False and pid.split("-")[0] in browser.get("apps", BROWSER_APPS)
+
+
 def detect_one(pid: str, cfg: dict) -> dict:
     out = {"id": pid, "label": PROVIDERS[pid]["label"], "kind": PROVIDERS[pid]["kind"],
            "tasks": list(PROVIDERS[pid]["tasks"]), "available": False, "reason": ""}
@@ -304,11 +316,9 @@ def detect_one(pid: str, cfg: dict) -> dict:
         out["available"] = ok
         out["reason"] = "ok" if ok else "AZURE_SPEECH_KEY / AZURE_SPEECH_REGION not set"
     elif pid in ("gemini-browser", "flow-browser", "aistudio-browser"):
-        browser = cfg.get("browser", {})
-        app = pid.split("-")[0]
-        out["available"] = bool(browser.get("enabled")) and app in browser.get("apps", ["gemini", "flow", "aistudio"])
+        out["available"] = browser_enabled(cfg, pid)
         out["reason"] = ("ok (manual: agent drives the browser)" if out["available"]
-                         else "browser use not enabled in config (browser.enabled + browser.apps)")
+                         else "browser use turned off in config (browser.enabled: false or app not in browser.apps)")
     return out
 
 
@@ -342,7 +352,7 @@ def plan(cfg: dict, task: str, needs: set[str], size: str = "1k",
     profile = profile or cfg.get("profile", "quality")
     order = [only] if only else resolve_order(cfg, task, profile, lang)
     status = {d["id"]: d for d in detect(cfg)}
-    chosen, skipped = [], []
+    chosen, skipped, smaller = [], [], []
     for pid in order:
         if pid not in PROVIDERS:
             skipped.append({"id": pid, "why": "unknown provider"}); continue
@@ -354,10 +364,15 @@ def plan(cfg: dict, task: str, needs: set[str], size: str = "1k",
         missing = [n for n in needs if n in ("refs", "transparent", "end_frame") and not caps.get(n)]
         if missing:
             skipped.append({"id": pid, "why": f"no {', '.join(missing)} support"}); continue
+        step = {"id": pid, "kind": PROVIDERS[pid]["kind"], "manual": PROVIDERS[pid]["kind"] == "browser"}
         if task == "image" and SIZE_RANK.get(size, 1) > SIZE_RANK.get(caps.get("max", "1k"), 1):
-            skipped.append({"id": pid, "why": f"max size {caps['max']}"}); continue
-        chosen.append({"id": pid, "kind": PROVIDERS[pid]["kind"], "manual": PROVIDERS[pid]["kind"] == "browser"})
-    result = {"task": task, "profile": profile, "order": chosen, "skipped": skipped}
+            # Too small natively: keep it as a late fallback, generate at its max, upscale locally.
+            smaller.append({**step, "generate_at": caps["max"], "upscale_to": size}); continue
+        chosen.append(step)
+    # Scriptable native-size routes first, then scriptable capped routes (upscaled), then manual ones.
+    order_out = [s for s in chosen if not s["manual"]] + [s for s in smaller if not s["manual"]] + \
+                [s for s in chosen if s["manual"]] + [s for s in smaller if s["manual"]]
+    result = {"task": task, "profile": profile, "order": order_out, "skipped": skipped}
     if lang:
         result["lang"] = lang
     return result
@@ -927,6 +942,168 @@ ADAPTERS = {
 }
 
 
+# --------------------------------------------------------------------------- Arabic tashkeel gate (before TTS)
+# Undiacritized words whose reading changes the meaning. TTS engines guess, and a wrong guess
+# changes a fact (real failures: «ثلثا» read as «ثلث», «عُشر» read as «عشرة»). If any of these
+# appear WITHOUT a single haraka, speech generation stops until the host adds tashkeel.
+
+TASHKEEL_RISKS = {
+    "ثلث": "ثُلُث (a third)", "ثلثا": "ثُلُثا (two-thirds)", "ثلثي": "ثُلُثَي (two-thirds)",
+    "ربع": "رُبْع (a quarter) · رَبْع (folk)", "خمس": "خُمْس (a fifth) · خَمْس (five)",
+    "سدس": "سُدْس (a sixth)", "سبع": "سُبْع (a seventh) · سَبْع (seven)",
+    "ثمن": "ثَمَن (price) · ثُمْن (an eighth)", "تسع": "تُسْع (a ninth) · تِسْع (nine)",
+    "عشر": "عُشْر (a tenth) · عَشْر (ten)", "دين": "دَيْن (debt) · دِين (religion)",
+    "عقد": "عَقْد (contract) · عِقْد (decade)", "ذهب": "ذَهَب (gold) · ذَهَبَ (went)",
+    "ملك": "مَلِك (king) · مُلْك (ownership) · مَلَكَ (owned)", "سلم": "سَلَم (forward sale) · سِلْم (peace)",
+    "صرف": "صَرْف (exchange) · صُرِف (was spent)", "حكم": "حُكْم (ruling) · حَكَم (referee)",
+}
+# noun/verb pairs: with the article «ال» only the noun reading is possible
+_NOUN_VERB = {"ذهب", "صرف"}
+_HARAKAT = re.compile("[\u064B-\u0652\u0670]")
+_AR_WORD = re.compile("[\u0621-\u064A\u064B-\u0652\u0670]+")
+_PREFIXES = ("وال", "فال", "بال", "كال", "لل", "ال", "و", "ف", "ب", "ل", "ك")
+_SUFFIXES = ("هما", "هم", "ها", "نا", "ه", "ك")
+
+
+def _stems(word: str) -> set[str]:
+    out = {word}
+    for p in _PREFIXES:
+        if word.startswith(p) and len(word) - len(p) >= 3:
+            out.add(word[len(p):])
+    for w in list(out):
+        for s in _SUFFIXES:
+            if w.endswith(s) and len(w) - len(s) >= 3:
+                out.add(w[:-len(s)])
+    return out
+
+
+def is_arabic(text: str) -> bool:
+    letters = [c for c in text if c.isalpha()]
+    return bool(letters) and sum("\u0600" <= c <= "\u06FF" for c in letters) / len(letters) > 0.5
+
+
+def tashkeel_check(text: str) -> dict:
+    """{"ambiguous": [...] (blocking), "advice": [...] (non-blocking)} for Arabic TTS text."""
+    amb, seen = [], set()
+    for ln, line in enumerate(text.splitlines(), 1):
+        for m in _AR_WORD.finditer(line):
+            w = m.group(0)
+            if _HARAKAT.search(w):
+                continue
+            hit = next((s for s in _stems(w) if s in TASHKEEL_RISKS), None)
+            if hit in _NOUN_VERB and re.match("^[وفبك]?(ال|لل)", w):
+                continue
+            if hit and (w, ln) not in seen:
+                seen.add((w, ln))
+                amb.append({"line": ln, "word": w, "readings": TASHKEEL_RISKS[hit]})
+    advice = []
+    if re.search(r"[0-9\u0660-\u0669]", text):
+        advice.append("digits found: write numbers as words with case endings (e.g. «ثلاثةُ ملايين»), "
+                      "or verify how the TTS reads them")
+    if "%" in text or "٪" in text:
+        advice.append("percent sign found: write «في المئة» / «بالمئة»")
+    acr = sorted(set(re.findall(r"\b[A-Z]{2,6}\b", text)))
+    if acr:
+        advice.append(f"acronyms {', '.join(acr[:8])}: check the reading; spell letters out if needed")
+    return {"ambiguous": amb, "advice": advice}
+
+
+# --------------------------------------------------------------------------- output checks (local ffmpeg)
+
+LONG_EDGE = {"1k": 1024, "2k": 2048, "4k": 3840}
+
+
+def _ffprobe(path: Path, entries: str) -> dict:
+    code, out = _run(["ffprobe", "-v", "error", "-show_entries", entries, "-of", "json", str(path)], timeout=60)
+    if code != 0:
+        raise ProviderError("failed", f"ffprobe could not read {path.name}: {out[:200]}")
+    return json.loads(out)
+
+
+def _replace_via_ffmpeg(path: Path, args: list[str]) -> None:
+    tmp = path.with_name(path.stem + f".tmp-{uuid.uuid4().hex[:6]}{path.suffix}")
+    code, out = _run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", *args, str(tmp)], timeout=600)
+    if code != 0 or not tmp.exists():
+        tmp.unlink(missing_ok=True)
+        raise ProviderError("failed", f"ffmpeg post-process failed: {out[-300:]}")
+    tmp.replace(path)
+
+
+def upscale_image(path: Path, size: str) -> str:
+    """Bring a capped provider's image up to the requested size class (long edge), Lanczos."""
+    if not shutil.which("ffmpeg"):
+        return f"generated at a smaller size; not upscaled to {size} (ffmpeg missing)"
+    s = _ffprobe(path, "stream=width,height")["streams"][0]
+    w, h = int(s["width"]), int(s["height"])
+    target = LONG_EDGE.get(size, 1024)
+    if max(w, h) >= target:
+        return f"provider returned {w}x{h}, already {size}"
+    k = target / max(w, h)
+    W, H = int(round(w * k / 2) * 2), int(round(h * k / 2) * 2)
+    _replace_via_ffmpeg(path, ["-i", str(path), "-vf", f"scale={W}:{H}:flags=lanczos", "-frames:v", "1",
+                               "-update", "1", *(["-q:v", "2"] if path.suffix.lower() in (".jpg", ".jpeg") else [])])
+    return f"provider max is below {size}: generated {w}x{h}, upscaled locally to {W}x{H} (Lanczos)"
+
+
+def _silences(path: Path, noise_db: int = -50, min_s: float = 2.0) -> list[tuple[float, float]]:
+    code, out = _run(["ffmpeg", "-hide_banner", "-nostats", "-i", str(path), "-af",
+                      f"silencedetect=n={noise_db}dB:d={min_s}", "-f", "null", "-"], timeout=300)
+    starts = [float(x) for x in re.findall(r"silence_start: ([\d.]+)", out)]
+    ends = [float(x) for x in re.findall(r"silence_end: ([\d.]+)", out)]
+    return [(s, ends[i] if i < len(ends) else None) for i, s in enumerate(starts)]
+
+
+def extend_audio(path: Path, want: float, xfade: float = 4.0) -> float:
+    """Lengthen a music track to `want` seconds without a hard loop: keep the intro, repeat the
+    body with crossfades, and end on the track's own ending."""
+    dur = float(_ffprobe(path, "format=duration")["format"]["duration"])
+    tail = min(10.0, 0.1 * dur)
+    off = 0.25 * dur
+    pieces = [(0.0, dur - tail)]
+    length = dur - tail
+    while length + (dur - off) - xfade < want:
+        pieces.append((off, dur - tail))
+        length += (dur - tail - off) - xfade
+    start = max(off, dur - (want - length + xfade))
+    pieces.append((start, dur))
+    n = len(pieces)
+    # one input per piece: asplit with many branches starves some of them (data silently lost)
+    fc = "".join(f"[{i}:a]atrim={a:.3f}:{b:.3f},asetpts=PTS-STARTPTS[p{i}];" for i, (a, b) in enumerate(pieces))
+    prev = "p0"
+    for i in range(1, n):
+        fc += f"[{prev}][p{i}]acrossfade=d={xfade}:c1=tri:c2=tri[x{i}];"
+        prev = f"x{i}"
+    inputs = [x for _ in range(n) for x in ("-i", str(path))]
+    _replace_via_ffmpeg(path, [*inputs, "-filter_complex", fc.rstrip(";"), "-map", f"[{prev}]"])
+    return float(_ffprobe(path, "format=duration")["format"]["duration"])
+
+
+def check_music(path: Path, want: float, asked: float) -> list[str]:
+    """Reject silent / truncated music (raises transient -> one retry, then next provider);
+    extend a track that is shorter than wanted (provider cap or slightly short)."""
+    if not (shutil.which("ffmpeg") and shutil.which("ffprobe")):
+        return ["music not checked (ffmpeg missing): listen before use"]
+    dur = float(_ffprobe(path, "format=duration")["format"].get("duration") or 0)
+    if dur < 1:
+        path.unlink(missing_ok=True)
+        raise ProviderError("transient", "music file is empty")
+    tail_from = dur - max(10.0, 0.1 * dur)
+    bad = [(s, (e if e is not None else dur)) for s, e in _silences(path) if s < tail_from and (e or dur) > 1.5]
+    gap = sum(e - s for s, e in bad)
+    if gap > max(8.0, 0.1 * dur) or any(e - s >= 6 for s, e in bad):
+        where = ", ".join(f"{s:.0f}–{e:.0f}s" for s, e in bad[:4])
+        path.unlink(missing_ok=True)
+        raise ProviderError("transient", f"music output check failed: {gap:.0f}s of silence mid-track ({where})")
+    if dur < 0.5 * asked:
+        path.unlink(missing_ok=True)
+        raise ProviderError("transient", f"music output check failed: {dur:.0f}s returned for {asked:.0f}s asked")
+    notes = []
+    if dur < want - 1:
+        new = extend_audio(path, want)
+        notes.append(f"music was {dur:.0f}s; extended to {new:.0f}s with crossfaded repeats (no hard loop)")
+    return notes
+
+
 # --------------------------------------------------------------------------- runner
 
 def run_task(task: str, a, cfg) -> int:
@@ -960,14 +1137,37 @@ def run_task(task: str, a, cfg) -> int:
             continue
         for attempt in range(2):
             t0 = time.time()
+            notes = []
             try:
-                path, model = adapter(a, cfg)
+                if step.get("generate_at"):
+                    want, a.size = a.size, step["generate_at"]
+                    try:
+                        path, model = adapter(a, cfg)
+                    finally:
+                        a.size = want
+                    notes.append(upscale_image(path, want))
+                elif task == "music":
+                    cap = PROVIDERS[pid]["tasks"]["music"].get("max_s")
+                    want = a.duration
+                    asked = min(want, cap) if cap else want
+                    a.duration = asked
+                    try:
+                        path, model = adapter(a, cfg)
+                    finally:
+                        a.duration = want
+                    notes += check_music(path, want, asked)
+                else:
+                    path, model = adapter(a, cfg)
                 attempts.append({"provider": pid, "ok": True, "seconds": round(time.time() - t0, 1)})
                 result = {"status": "ok", "task": task, "provider": pid, "model": model, "path": str(path),
                           "attempts": attempts, "skipped": p["skipped"]}
+                if notes:
+                    result["notes"] = notes
+                if getattr(a, "tashkeel_advice", None):
+                    result["tashkeel_advice"] = a.tashkeel_advice
                 if post:
                     result["post"] = post
-                print(json.dumps(result, indent=2))
+                print(json.dumps(result, indent=2, ensure_ascii=False))
                 return 0
             except ProviderError as e:
                 attempts.append({"provider": pid, "ok": False, "error": e.kind, "detail": str(e)[:300]})
@@ -984,7 +1184,7 @@ def run_task(task: str, a, cfg) -> int:
                 attempts.append({"provider": pid, "ok": False, "error": "crash", "detail": repr(e)[:300]})
                 break
     fixable = [s["id"] for s in p["skipped"] if "not set" in s["why"] or "not signed" in s["why"]
-               or "not installed" in s["why"] or "not logged" in s["why"] or "browser use not enabled" in s["why"]]
+               or "not installed" in s["why"] or "not logged" in s["why"] or "browser use turned off" in s["why"]]
     fixable += [t["provider"] for t in attempts if t.get("error") == "auth"]
     connect_hint = [f"python3 scripts/connect.py {pid}" for pid in dict.fromkeys(fixable)]
     if manual:
@@ -1052,7 +1252,13 @@ def main() -> int:
     sp.add_argument("--lang", help="BCP-47 language/dialect: ar (MSA), ar-EG, ar-SA, ar-AE, ar-LB, ar-MA, en-US …")
     sp.add_argument("--style", help="delivery direction, e.g. 'warm, upbeat, conversational'")
     sp.add_argument("--speed", type=float)
+    sp.add_argument("--allow-ambiguous", action="store_true",
+                    help="skip the Arabic tashkeel gate (not recommended)")
     _common(sp)
+
+    tp = sub.add_parser("tashkeel-check", help="list Arabic words that need tashkeel before TTS")
+    tp.add_argument("--text")
+    tp.add_argument("--text-file", type=Path)
 
     mp = sub.add_parser("music")
     mp.add_argument("--prompt", required=True)
@@ -1082,6 +1288,15 @@ def main() -> int:
         needs = {n for n in a.needs.split(",") if n}
         print(json.dumps(plan(cfg, a.task, needs, a.size, a.profile, a.provider, a.lang), indent=2))
         return 0
+    if a.cmd == "tashkeel-check":
+        txt = a.text_file.read_text() if a.text_file else (a.text or "")
+        if not txt:
+            print(json.dumps({"status": "error", "detail": "--text or --text-file required"}))
+            return 2
+        chk = tashkeel_check(txt)
+        print(json.dumps({"status": "needs_tashkeel" if chk["ambiguous"] else "ok", **chk},
+                         ensure_ascii=False, indent=2))
+        return 5 if chk["ambiguous"] else 0
     if a.cmd == "adopt":
         src = a.src.expanduser()
         if not src.is_file():
@@ -1107,6 +1322,16 @@ def main() -> int:
         if not a.text:
             print(json.dumps({"status": "error", "detail": "--text or --text-file required"}))
             return 2
+        if (a.lang or "").startswith("ar") or (not a.lang and is_arabic(a.text)):
+            chk = tashkeel_check(a.text)
+            if chk["ambiguous"] and not a.allow_ambiguous:
+                print(json.dumps({"status": "needs_tashkeel", "task": "speech", **chk,
+                                  "advice_fix": "Add tashkeel to each listed word for the meaning you intend "
+                                                "(one haraka is enough to pass), then run again. Nothing was sent "
+                                                "to any TTS provider. --allow-ambiguous skips this check."},
+                                 ensure_ascii=False, indent=2))
+                return 5
+            a.tashkeel_advice = chk["advice"]
     return run_task(a.cmd, a, cfg)
 
 

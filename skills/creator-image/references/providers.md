@@ -57,7 +57,9 @@ they sit in the list.
 - `--end` (video) → needs end-frame support (drops `gemini-browser`).
 - `--transparent` → only `openai-api`, `codex`. If neither is available the router renders on
   white and returns `"post": "remove_background"` → run `media.py cutout`.
-- `--size 2k|4k` (image) → drops providers whose max is lower.
+- `--size 2k|4k` (image) → providers whose max is lower move to the end of the scriptable
+  routes (`generate_at` / `upscale_to` in the plan): they generate at their max and the
+  router upscales locally (Lanczos) and says so in `notes`. Native-size routes go first.
 
 ## When nothing can generate
 
@@ -78,10 +80,21 @@ they sit in the list.
 | `failed` (anything else) | next provider |
 | `policy` (content refused) | **stop**. Never shop a refused request to other providers |
 
+**Output checks (verify on disk).** Music is checked after every call: a track with silence
+mid-way (≥ 6 s, or > 10% of its length outside the final fade) or under half the asked
+length is deleted and counts as `transient` (one retry, then the next provider). A track
+shorter than wanted, or a request above the provider's cap (ElevenLabs Music: 300 s), is
+extended locally with crossfaded repeats of its body and its own ending (`notes` says so).
+
+**Arabic speech gate.** With `--lang ar*` (or Arabic text), `speech` first checks for words
+whose meaning depends on vowels (ثلث/ثلثا، عُشر/عَشر، دَين/دِين، عَقد/عِقد، ذَهَب/ذَهَبَ…). If any
+appear with no haraka, nothing is sent: exit `5`, `status: needs_tashkeel` with the words
+and their readings. Add tashkeel and rerun (`arabic-voice.md`).
+
 Only manual providers left → exit `3`, `status: needs_browser`, with `next` and the full
 `request` to reproduce in the browser. Follow `browser-<id>.md`, then `creator.py adopt`.
 
-Exit codes: `0` ok · `1` all failed · `2` bad usage · `3` needs browser · `4` policy block.
+Exit codes: `0` ok · `1` all failed · `2` bad usage · `3` needs browser · `4` policy block · `5` Arabic text needs tashkeel.
 
 ## Models
 

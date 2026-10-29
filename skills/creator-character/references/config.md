@@ -50,8 +50,8 @@ No config is fine: everything auto-detects and the `quality` profile applies.
 | `disabled` | Provider ids never to use |
 | `models.<provider>.<task>` | Model id override |
 | `voices.<provider>` / `voices["<provider>:<lang>"]` | Default voice per speech provider, optionally per language/dialect |
-| `browser.enabled` | Allow computer-use providers (off by default: the agent needs a browser tool) |
-| `browser.apps` | Web apps the user is signed in to: `gemini`, `flow`, `aistudio` |
+| `browser.enabled` | Computer-use providers are **on by default**; set `false` to never use them (e.g. an agent with no browser tool) |
+| `browser.apps` | Web apps the router may drive (default all three: `gemini`, `flow`, `aistudio`); list fewer to narrow |
 | `browser.downloads_dir` | Where the browser saves files, for `creator.py adopt` |
 | `brand` | Optional brand defaults read by thumbnail / product / brandkit / ad skills |
 

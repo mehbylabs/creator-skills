@@ -8,12 +8,38 @@ drives the accent more than any setting. `إزيك؟ عامل إيه النها�
 Ask the user for the target dialect, then draft (or convert) the script into it and get the
 user's approval of the wording before generating.
 
-- MSA/Fusha: add tashkeel (diacritics) to names, rare words, and anything ambiguous.
+- MSA/Fusha: add tashkeel (diacritics) to names, rare words, and anything ambiguous (next
+  section: this is required, not optional).
 - Dialects: use the spelling native speakers use online; avoid mixing Fusha grammar in.
 - Numbers, dates, brand names: write them as they should be spoken (in words, in Arabic
   script) — e.g. `ألفين وستة وعشرين`, not `2026`.
 - Mixed Arabic/English (common in Gulf/Levantine/Egyptian content): keep English words in
   Latin script; Gemini TTS handles code-switching.
+
+## Tashkeel before any TTS (required)
+
+Every TTS engine guesses the vowels of bare Arabic text, and some guesses change the facts.
+Real failures in a finance documentary: «ثلثا» (two-thirds) read as «ثلث» (a third), «عُشر»
+(a tenth) read as «عشرة» (ten), «98» heard as «89». So before any Arabic text goes to any
+provider (API, CLI or browser):
+
+1. **Selective tashkeel, not full.** Mark only what decides the meaning or the case:
+   - fractions vs numbers: ثُلُث / ثُلُثا، رُبْع، خُمْس / خَمْس، سُبْع / سَبْع، ثُمْن / ثَمَن (price)، تُسْع / تِسْع، عُشْر / عَشْر
+   - same letters, different words: دَيْن (debt) / دِين، عَقْد (contract) / عِقْد (decade)، ذَهَب / ذَهَبَ، مُلْك / مَلِك، سَلَم / سِلْم، صَرْف / صُرِف، حُكْم / حَكَم
+   - passive vs active where it changes who did what: أُعلِن، قُدِّر، بِيع، سُمِح
+   - names and rare words (تُوَيتشِل، السُّلَيْمان), and the case ending on numbers in words
+     (ثلاثةُ ملايينَ، بأكثرَ من عشرين).
+2. **Numbers as words** with case endings; percentages as «في المئة»; acronyms spelled the way
+   they should be heard («إيه جي بي آي» or the full name).
+3. **Check, then generate.** `python3 scripts/creator.py tashkeel-check --text-file vo/01.txt`
+   lists bare risky words and their readings. `speech` runs the same check and stops with
+   exit `5` (`needs_tashkeel`, nothing sent) until each listed word has at least one haraka.
+   `--allow-ambiguous` exists for text you have checked by ear; don't use it to save time.
+4. **After generating,** for long scripts transcribe the audio back (any STT you have) and
+   diff it against the script: numbers and fractions first. Re-voice only the lines that changed.
+
+The checker knows the common traps, not every word: you (the host) still read the script as
+a listener would and add tashkeel wherever two readings are possible.
 
 ## `--lang` values
 

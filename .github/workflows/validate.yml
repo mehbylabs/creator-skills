@@ -22,3 +22,12 @@ jobs:
           python3 shared/scripts/media.py text --image /tmp/bg.png --out /tmp/t.png --text "HELLO"
           python3 shared/scripts/media.py still --image /tmp/t.png --out /tmp/s.mp4 --duration 1
           python3 shared/scripts/media.py probe /tmp/s.mp4
+          # cutout: chroma-green key (#00FF00) is removed and leaves no green fringe
+          ffmpeg -loglevel error -f lavfi -i color=c=0x00FF00:s=400x300 -vf "drawbox=x=100:y=75:w=200:h=150:color=0xD2A028:t=fill,gblur=sigma=3" -frames:v 1 /tmp/g.png
+          python3 shared/scripts/media.py cutout --image /tmp/g.png --out /tmp/g-cut.png --color green | grep -q 'despill(green)'
+          # Arabic tashkeel gate: bare meaning-changing word -> exit 5; marked -> exit 0
+          python3 shared/scripts/creator.py tashkeel-check --text "خسر ثلثيه" > /dev/null && exit 1 || [ $? -eq 5 ]
+          python3 shared/scripts/creator.py tashkeel-check --text "خسر ثُلُثَيه" > /dev/null
+          # music post-check: a short track is extended to the exact length
+          ffmpeg -loglevel error -f lavfi -i "sine=f=220:d=60" -af volume=0.3 /tmp/m.mp3
+          python3 -c "import sys; sys.path.insert(0,'shared/scripts'); import creator, pathlib; p=pathlib.Path('/tmp/m.mp3'); creator.check_music(p, 150, 60); d=float(creator._ffprobe(p,'format=duration')['format']['duration']); assert abs(d-150)<1, d"

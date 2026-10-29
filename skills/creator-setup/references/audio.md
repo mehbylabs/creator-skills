@@ -7,7 +7,10 @@ python3 scripts/creator.py speech --text-file script.txt --out vo.mp3 [--lang ar
 ```
 
 **Arabic or any Arabic dialect → read `arabic-voice.md` first** (script must be written in
-the dialect; `--lang` picks dialect-aware routing and voices).
+the dialect; `--lang` picks dialect-aware routing and voices). **Add tashkeel to every word
+whose meaning depends on its vowels before sending it to any TTS**; `speech` refuses Arabic
+text with such words left bare (exit `5`), and `creator.py tashkeel-check --text-file F`
+lists them ahead of time.
 
 - Write for the ear: short sentences, numbers as words when ambiguous ("twenty twenty-six"),
   spell out acronyms you want letter-by-letter ("A-P-I").
@@ -38,8 +41,13 @@ python3 scripts/creator.py music --prompt "lo-fi hip hop, warm Rhodes, vinyl cra
 
 Prompt with genre, instrumentation, tempo (bpm), mood, energy arc ("builds at 0:20").
 Background beds under narration: always `--instrumental`, mixed by `media.py assemble`
-(ducked automatically). Google's default `lyria-3-clip-preview` returns 30 s; loop or pick
+(ducked automatically). Google's default `lyria-3-clip-preview` returns 30 s; pick
 `lyria-3.5` in config for full-length tracks.
+
+The router checks every track on disk: silent or truncated takes are thrown away and
+retried; a track shorter than `--duration` (or over a provider cap, e.g. ElevenLabs 300 s)
+is extended seamlessly to the exact length (`notes` in the JSON). Still listen once before
+shipping: a check can prove a file has sound, not that the sound fits.
 
 ## Sound effects (`creator.py sfx`)
 

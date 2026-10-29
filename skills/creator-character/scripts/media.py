@@ -5,7 +5,7 @@ Subcommands (JSON on stdout):
   probe    FILE                                  Duration, size, audio presence.
   still    --image I --out O --duration S        Ken Burns clip from a still.
   text     --image I --out O --text T            Bold headline overlay (thumbnails, covers).
-  cutout   --image I --out O                     Remove a flat background -> transparent PNG.
+  cutout   --image I --out O [--color green]     Remove a flat background -> transparent PNG (despills green/blue).
   reframe  --video V --out O --ratio 9:16        Crop / pad / blur-pad to a new aspect ratio.
   captions --video V --srt S --out O             Burn subtitles.
   assemble --scenes scenes.json --out O          Build a narrated video from scenes (+ music bed).
@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -115,15 +116,57 @@ def text(image: Path, out: Path, txt: str, pos: str, size: float, color: str, st
     return out
 
 
-def cutout(image: Path, out: Path, color: str, similarity: float) -> tuple[Path, str]:
+NAMED = {"white": "ffffff", "black": "000000", "green": "00ff00", "lime": "00ff00", "blue": "0000ff",
+         "red": "ff0000", "magenta": "ff00ff"}
+
+
+def key_hex(color: str) -> str | None:
+    """Resolve a key colour to 6-digit hex. ffmpeg's own names are wrong for keying
+    ('green' = #008000), so chroma names map to the screen colours generators use."""
+    c = NAMED.get(color.lower(), color.lower().lstrip("#").replace("0x", ""))
+    return c if re.fullmatch(r"[0-9a-f]{6}", c) else None
+
+
+def key_channel(color: str) -> str | None:
+    """'green' / 'blue' when the key colour is a chroma screen (spill to remove), else None."""
+    c = key_hex(color)
+    if not c:
+        return None
+    r, g, b = (int(c[i:i + 2], 16) for i in (0, 2, 4))
+    if g > 120 and g > 1.5 * max(r, b):
+        return "green"
+    if b > 120 and b > 1.5 * max(r, g):
+        return "blue"
+    return None
+
+
+def cutout(image: Path, out: Path, color: str, similarity: float, blend: float = 0.15,
+           despill: str = "auto", engine: str = "auto") -> dict:
+    """Flat background -> transparent PNG. rembg if installed (engine=auto), else colorkey; on a
+    chroma green/blue key the leftover colour on edges is removed with despill (no green fringe)."""
     out = out.with_suffix(".png")
-    if shutil.which("rembg"):
+    notes = []
+    if engine in ("auto", "rembg") and shutil.which("rembg"):
         r = subprocess.run(["rembg", "i", str(image), str(out)], capture_output=True, text=True)
         if r.returncode == 0:
-            return out, "rembg"
-    ff(["-i", str(image), "-vf", f"format=rgba,colorkey={color}:{similarity}:0.08",
-        "-frames:v", "1", "-update", "1", str(out)])
-    return out, "colorkey"
+            return {"path": str(out), "method": "rembg"}
+        notes.append("rembg failed; used colorkey")
+    elif engine == "auto":
+        notes.append("rembg not installed: used colorkey. For photos/hair install it (pip install rembg[cli])")
+    chan = key_channel(color) if despill == "auto" else (None if despill == "none" else despill)
+    hx = key_hex(color)
+    vf = f"format=rgba,colorkey={'0x' + hx if hx else color}:{similarity}:{blend}"
+    if chan:
+        # "limit" despill: cap the screen channel at the max of the other two. Only pixels where
+        # that channel dominates change (green edges/reflections); golds, yellows, skin stay intact.
+        lim = {"green": "g='min(g(X,Y),max(r(X,Y),b(X,Y)))':r='r(X,Y)':b='b(X,Y)'",
+               "blue": "b='min(b(X,Y),max(r(X,Y),g(X,Y)))':r='r(X,Y)':g='g(X,Y)'"}[chan]
+        vf += f",format=gbrap,geq={lim}:a='alpha(X,Y)',format=rgba"
+    ff(["-i", str(image), "-vf", vf, "-frames:v", "1", "-update", "1", str(out)])
+    res = {"path": str(out), "method": "colorkey" + (f"+despill({chan})" if chan else "")}
+    if notes:
+        res["notes"] = notes
+    return res
 
 
 def reframe(video: Path, out: Path, ratio: str, mode: str) -> Path:
@@ -225,7 +268,12 @@ def main() -> int:
 
     p = sub.add_parser("cutout")
     p.add_argument("--image", required=True, type=Path); p.add_argument("--out", required=True, type=Path)
-    p.add_argument("--color", default="white"); p.add_argument("--similarity", type=float, default=0.12)
+    p.add_argument("--color", default="white", help="key colour: white, green, #00b140 …")
+    p.add_argument("--similarity", type=float, default=0.12)
+    p.add_argument("--blend", type=float, default=0.15, help="edge softness of the key (0.08 = hard)")
+    p.add_argument("--despill", default="auto", choices=["auto", "green", "blue", "none"],
+                   help="remove screen-colour fringe; auto = on for green/blue keys")
+    p.add_argument("--engine", default="auto", choices=["auto", "rembg", "colorkey"])
 
     p = sub.add_parser("reframe")
     p.add_argument("--video", required=True, type=Path); p.add_argument("--out", required=True, type=Path)
@@ -254,8 +302,7 @@ def main() -> int:
                 res = {"path": str(text(a.image, a.out, a.text.replace("\\n", "\n"), a.pos, a.size, a.color,
                                         a.stroke, a.box, a.font, a.align))}
             elif a.cmd == "cutout":
-                path, method = cutout(a.image, a.out, a.color, a.similarity)
-                res = {"path": str(path), "method": method}
+                res = cutout(a.image, a.out, a.color, a.similarity, a.blend, a.despill, a.engine)
             elif a.cmd == "reframe":
                 res = {"path": str(reframe(a.video, a.out, a.ratio, a.mode))}
             elif a.cmd == "captions":
