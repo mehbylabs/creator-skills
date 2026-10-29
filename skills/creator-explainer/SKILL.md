@@ -11,7 +11,7 @@ license: MIT
 compatibility: Python 3.9+ and ffmpeg. Best with a speech provider and an image provider.
 allowed-tools: Bash Read Write
 metadata:
-  version: "0.2.0"
+  version: "0.3.0"
   argument-hint: "<topic or file> [--length 60s] [--vertical] [--style 'flat illustration']"
 ---
 
@@ -52,6 +52,7 @@ first success. Scene timing comes from these durations. Non-English: pass `--lan
 Arabic dialects write the script in the dialect and follow `references/arabic-voice.md`.
 Arabic narration: add tashkeel to meaning-changing words (fractions, دَين/دِين، عَقد/عِقد,
 passive verbs, numbers in words) before any TTS; `speech` stops with `needs_tashkeel` otherwise.
+Generate every narration file with `--verify` and re-voice lines whose numbers or names changed.
 
 ## Step 4 — Visuals
 

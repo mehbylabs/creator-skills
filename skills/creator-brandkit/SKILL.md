@@ -12,7 +12,7 @@ license: MIT
 compatibility: Python 3.9+ and ffmpeg. Image provider optional (logo SVGs are authored directly).
 allowed-tools: Bash Read Write
 metadata:
-  version: "0.2.0"
+  version: "0.3.0"
   argument-hint: "<brand name + what it does> [--vibe 'calm, premium'] [--extend existing assets]"
 ---
 

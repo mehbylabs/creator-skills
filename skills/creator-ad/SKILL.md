@@ -12,7 +12,7 @@ license: MIT
 compatibility: Python 3.9+ and ffmpeg. Better with video and speech providers; works with images only.
 allowed-tools: Bash Read Write
 metadata:
-  version: "0.2.0"
+  version: "0.3.0"
   argument-hint: "<product + angle> [--hooks 3] [--length 15s] [--placements 9:16,1:1]"
 ---
 

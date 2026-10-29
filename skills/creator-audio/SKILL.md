@@ -13,7 +13,7 @@ license: MIT
 compatibility: Python 3.9+; ffmpeg for format conversion. Needs one of ElevenLabs, Gemini, Azure, OpenAI keys, gcloud auth, Higgsfield CLI, or a browser tool for AI Studio.
 allowed-tools: Bash Read Write
 metadata:
-  version: "0.2.0"
+  version: "0.3.0"
   argument-hint: "voiceover|music|sfx <text-or-prompt> [--voice id] [--duration s]"
 ---
 
@@ -36,8 +36,11 @@ guidance.
    (`references/arabic-voice.md`).
 4. Generate the **first** file and have the user listen before doing the rest:
    ```bash
-   python3 scripts/creator.py speech --text-file vo/01.txt --out vo/01.mp3 [--lang ar-EG] [--voice <id>] [--style "warm, confident"]
+   python3 scripts/creator.py speech --text-file vo/01.txt --out vo/01.mp3 --verify [--lang ar-EG] [--voice <id>] [--style "warm, confident"]
    ```
+   `--verify` transcribes the result and lists words read differently from the script
+   (`verify.differences`, numbers first). Re-voice any line whose number, fraction, name or
+   negation changed.
 5. Pin the provider and voice from the result (`--provider <id> --voice <voice>`, keep
    `--lang`) for every remaining file so the narrator never changes.
 6. `python3 scripts/media.py probe vo/01.mp3` to confirm duration; report total length.
@@ -66,6 +69,7 @@ python3 scripts/creator.py sfx --prompt "<source, action, space>" [--duration 2]
 | `ok` | Report file, length, provider/voice |
 | `blocked` | Explain; offer a revised script/prompt |
 | `needs_tashkeel` (exit 5) | Nothing was sent. Add tashkeel to each listed word for the intended reading, rerun |
+| `ok` + `verify.status: check` | Listen to each listed difference; fix tashkeel/wording and re-voice lines with a real misreading |
 | `needs_browser` | Drive the provider in `next` (computer use is on by default) |
 | `failed` | Name the cheapest provider to add and its `connect` command from the JSON (user runs it in their terminal; `references/connect.md`) |
 
