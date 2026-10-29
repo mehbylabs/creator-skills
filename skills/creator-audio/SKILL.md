@@ -13,7 +13,7 @@ license: MIT
 compatibility: Python 3.9+; ffmpeg for format conversion. Needs one of ElevenLabs, Gemini, Azure, OpenAI keys, gcloud auth, Higgsfield CLI, or a browser tool for AI Studio.
 allowed-tools: Bash Read Write
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
   argument-hint: "voiceover|music|sfx <text-or-prompt> [--voice id] [--duration s]"
 ---
 
@@ -30,6 +30,10 @@ guidance.
 2. **Script** — if the user gave a topic, draft it (≈150 words/min; Arabic ≈ 120–130).
    For a dialect, write it *in that dialect's spelling*. Show it; wait for approval.
 3. Split into paragraphs/scenes; save as `vo/01.txt`, `vo/02.txt`, …
+   **Arabic: add tashkeel to every word whose meaning depends on its vowels** (fractions,
+   دَين/دِين، عَقد/عِقد، ذَهَب…, passive verbs, numbers in words) before any TTS, then run
+   `python3 scripts/creator.py tashkeel-check --text-file vo/01.txt` until it says `ok`
+   (`references/arabic-voice.md`).
 4. Generate the **first** file and have the user listen before doing the rest:
    ```bash
    python3 scripts/creator.py speech --text-file vo/01.txt --out vo/01.mp3 [--lang ar-EG] [--voice <id>] [--style "warm, confident"]
@@ -46,7 +50,8 @@ guidance.
 python3 scripts/creator.py music --prompt "<genre, instruments, bpm, mood, arc>" --duration 60 [--instrumental] --out music/bed.mp3
 ```
 
-Beds under speech → always `--instrumental`.
+Beds under speech → always `--instrumental`. The router rejects silent or truncated takes
+and extends short ones to the exact `--duration` (see `notes`); still listen once.
 
 ## Sound effects
 
@@ -60,6 +65,8 @@ python3 scripts/creator.py sfx --prompt "<source, action, space>" [--duration 2]
 |---|---|
 | `ok` | Report file, length, provider/voice |
 | `blocked` | Explain; offer a revised script/prompt |
+| `needs_tashkeel` (exit 5) | Nothing was sent. Add tashkeel to each listed word for the intended reading, rerun |
+| `needs_browser` | Drive the provider in `next` (computer use is on by default) |
 | `failed` | Name the cheapest provider to add and its `connect` command from the JSON (user runs it in their terminal; `references/connect.md`) |
 
 ## Rules

@@ -12,7 +12,7 @@ license: MIT
 compatibility: Python 3.9+; ffmpeg recommended. Needs at least one image provider (see creator-setup).
 allowed-tools: Bash Read
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
   argument-hint: "<prompt> [--ratio 16:9] [--size 1k|2k|4k] [--ref img] [--transparent] [--provider id]"
 ---
 

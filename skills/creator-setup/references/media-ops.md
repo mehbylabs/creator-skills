@@ -8,10 +8,14 @@ finish, fix, or replace generated media. All commands print JSON.
 | `probe FILE` | Duration, size, whether audio exists — verify every output |
 | `still --image I --out O.mp4 --duration 5 --ratio 16:9 --motion in\|out\|left\|right\|none` | Ken Burns clip from a still; the video fallback when no video provider exists |
 | `text --image I --out O.png --text "LINE ONE\nLINE TWO" --pos top\|center\|bottom --align left\|center\|right --size 0.12 [--box "black@0.55"] [--font F.ttf] [--color white --stroke black]` | Crisp headline overlay; place it in the empty area the art reserved |
-| `cutout --image I --out O.png [--color white --similarity 0.12]` | Transparent PNG from a flat background (uses `rembg` if installed) |
+| `cutout --image I --out O.png [--color white\|green\|#00b140 --similarity 0.12 --blend 0.15 --despill auto]` | Transparent PNG from a flat background. `rembg` if installed, else colour key. On a green/blue screen the leftover screen colour on edges is removed (`despill auto`), and golds/yellows/skin stay untouched. `--color green` means the chroma green generators use (#00FF00), not ffmpeg's dark `green` |
 | `reframe --video V --out O --ratio 9:16 --mode blur\|crop\|pad` | Change aspect ratio of a video or image |
 | `captions --video V --srt S.srt --out O.mp4 [--size 16]` | Burn subtitles |
 | `assemble --scenes scenes.json --out O.mp4 [--ratio 16:9] [--music bed.mp3 --music-volume 0.18]` | Narrated slideshow/explainer: scenes timed to their voiceover, music ducked under speech, loudness normalized to −14 LUFS |
+
+**Props on a chroma screen (best edges without `rembg`):** prompt the generator for the subject
+"on a flat pure chroma-green (#00FF00) background, no shadow, no green on the subject", then
+`cutout --color green`. Look at the PNG over a dark colour: no green halo should remain.
 
 `scenes.json` (paths relative to the file):
 

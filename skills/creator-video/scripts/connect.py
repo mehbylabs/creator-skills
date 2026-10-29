@@ -171,11 +171,10 @@ def verify(pid: str) -> dict:
     if spec["type"] in ("cli", "gcloud"):
         status, detail = verify_cli(pid)
         return {"provider": pid, "status": status, "detail": detail}
-    browser = creator.load_config().get("browser", {})
-    on = bool(browser.get("enabled")) and spec["app"] in browser.get("apps", [])
+    on = creator.browser_enabled(creator.load_config(), pid)
     return {"provider": pid, "status": "ok" if on else "missing",
-            "detail": "enabled in config (sign-in happens in the browser)" if on else
-            f"run: connect.py {pid}  (then sign in at {spec['url']} in the agent's browser)"}
+            "detail": "enabled (default; sign-in happens in the browser)" if on else
+            f"turned off in config — run: connect.py {pid}  (then sign in at {spec['url']} in the agent's browser)"}
 
 
 # --------------------------------------------------------------------------- writers
@@ -204,7 +203,7 @@ def enable_browser_app(app: str) -> Path:
     cfg = json.loads(cfg_path.read_text()) if cfg_path.exists() else {}
     browser = cfg.setdefault("browser", {})
     browser["enabled"] = True
-    apps = browser.setdefault("apps", [])
+    apps = browser.setdefault("apps", list(creator.BROWSER_APPS))
     if app not in apps:
         apps.append(app)
     cfg_path.parent.mkdir(parents=True, exist_ok=True)

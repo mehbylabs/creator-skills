@@ -137,6 +137,9 @@ that handle it best, with accent direction and per-country voices:
 
 The skill writes (or converts) your script **in the dialect's own spelling** — the biggest
 factor in sounding native — and has you approve the first line before generating the rest.
+Before any text reaches a TTS engine, words whose meaning depends on their vowels get
+tashkeel (ثُلُثا not ثلثا, عُشْر not عشر, دَيْن not دين); `speech` refuses Arabic text that
+leaves them bare, because a wrong guess changes the facts, not just the accent.
 Guide: [`arabic-voice.md`](shared/references/arabic-voice.md)
 
 ## Connect your tools
@@ -151,7 +154,7 @@ S=~/.claude/skills/creator-setup/scripts   # wherever your agent installed the s
 python3 $S/connect.py verify               # what's connected (keys masked)
 python3 $S/connect.py google-api           # paste key → verified → saved
 python3 $S/connect.py higgsfield           # install + browser login
-python3 $S/connect.py aistudio-browser     # enable a browser app
+python3 $S/connect.py aistudio-browser     # browser apps are on by default; this re-enables one
 op read "op://Private/ElevenLabs/key" | python3 $S/connect.py elevenlabs --stdin
 ```
 
@@ -216,6 +219,7 @@ python3 $S/creator.py detect                                   # what's availabl
 python3 $S/creator.py plan --task speech --lang ar-EG          # route that would be used
 python3 $S/creator.py image  --prompt "…" --ratio 16:9 --out out/hero.png
 python3 $S/creator.py video  --prompt "slow push-in" --start out/hero.png --out out/clip.mp4
+python3 $S/creator.py tashkeel-check --text-file vo.txt        # Arabic: words that need tashkeel first
 python3 $S/creator.py speech --text-file vo.txt --lang ar-EG --out out/vo.mp3
 python3 $S/creator.py music  --prompt "lo-fi, 80 bpm" --instrumental --duration 60 --out out/bed.mp3
 
@@ -225,8 +229,11 @@ python3 $S/media.py assemble --scenes scenes.json --music out/bed.mp3 --out out/
 ```
 
 Every command prints JSON: `ok`, `needs_browser` (with the request to reproduce in the
-browser), `blocked` (content refused — no provider-shopping), or `failed` (with the exact
-`connect` command that would fix it).
+browser), `blocked` (content refused — no provider-shopping), `needs_tashkeel` (Arabic text
+with meaning-changing words left without vowels; nothing was sent), or `failed` (with the
+exact `connect` command that would fix it). Outputs are checked on disk: silent or truncated
+music is retried, short music is extended to the exact length, and images from a provider
+capped below the requested size are upscaled locally (reported in `notes`).
 
 ## FAQ
 
@@ -236,9 +243,10 @@ quality or resilience.
 **Which agents does it work with?** Anything that loads Agent Skills: Claude Code, OpenCode,
 Codex, Cursor, Antigravity, Gemini CLI, GitHub Copilot, Windsurf, and more via `npx skills`.
 
-**How does browser fallback work?** If your agent has a browser / computer-use tool and you
-enable it, the skills include step-by-step playbooks for the Gemini app, Google Flow, and
-AI Studio. You sign in once yourself; the agent never types passwords.
+**How does browser fallback work?** Computer use is on by default as the last route: when no
+key or CLI can do a job, the agent drives the Gemini app, Google Flow or AI Studio with the
+step-by-step playbooks. You sign in once yourself; the agent never types passwords. Turn it
+off with `"browser": {"enabled": false}` in the config.
 
 **Is it safe with my keys?** Keys never pass through chat or command lines, are stored with
 user-only permissions, and are masked in every output. See [`connect.md`](shared/references/connect.md).

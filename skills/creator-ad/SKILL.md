@@ -12,7 +12,7 @@ license: MIT
 compatibility: Python 3.9+ and ffmpeg. Better with video and speech providers; works with images only.
 allowed-tools: Bash Read Write
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
   argument-hint: "<product + angle> [--hooks 3] [--length 15s] [--placements 9:16,1:1]"
 ---
 
@@ -45,7 +45,8 @@ python3 scripts/creator.py detect
 | Image provider only | Per beat: product-locked stills → Ken Burns via `media.py assemble` |
 
 Voiceover per beat with `creator.py speech` (pinned voice, energetic but natural style;
-`--lang` for the market's language — Arabic dialect ads: `references/arabic-voice.md`).
+`--lang` for the market's language — Arabic dialect ads: `references/arabic-voice.md`;
+add tashkeel to meaning-changing words before any TTS, or `speech` stops with `needs_tashkeel`).
 Presenter faces: use creator-character packs only for the user or consenting people.
 
 ## Step 4 — Assemble each variant

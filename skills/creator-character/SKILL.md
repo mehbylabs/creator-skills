@@ -12,7 +12,7 @@ license: MIT
 compatibility: Python 3.9+. Needs a provider that accepts reference images (Higgsfield, Google, OpenAI, Codex, or browser).
 allowed-tools: Bash Read Write
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
   argument-hint: "create|use <name> [photos...]"
 ---
 

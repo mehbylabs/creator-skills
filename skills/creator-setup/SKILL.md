@@ -14,7 +14,7 @@ license: MIT
 compatibility: Python 3.9+. Works with any subset of the supported providers.
 allowed-tools: Bash Read Write
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
   argument-hint: "[profile|order|disable|voices|brand|enable-browser]"
 ---
 
@@ -43,9 +43,10 @@ and voice). For each, follow `references/connect.md`:
   the key hidden, verifies it, saves to `~/.config/creator-skills/.env` (chmod 600).
 - OAuth/CLI providers (`higgsfield`, `codex`, `agy`, `google-cloud-tts`) — same command; it
   runs their browser login.
-- Browser apps (`gemini-browser`, `flow-browser`, `aistudio-browser`) — first confirm this
-  agent has a browser / computer-use tool; you may run `connect.py <id>` yourself (it only
-  edits config), then the user signs in once in that browser.
+- Browser apps (`gemini-browser`, `flow-browser`, `aistudio-browser`) are **on by default**
+  as the last fallback; the user only signs in once in the agent's browser. If this agent has
+  no browser / computer-use tool, or the user doesn't want computer use, set
+  `"browser": {"enabled": false}` (or narrow `browser.apps`) in the config.
 - When they're done, run `python3 scripts/connect.py verify <provider>` and report.
 
 **Never** ask for keys in chat, read `.env` files, or put keys on a command line. If a key
