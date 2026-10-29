@@ -43,7 +43,7 @@ license: MIT
 compatibility: …               # ≤ 500 chars
 allowed-tools: Bash Read Write # space-separated string
 metadata:
-  version: "0.2.0"             # must equal VERSION
+  version: "0.3.0"             # must equal VERSION
   argument-hint: "…"
 ---
 ```

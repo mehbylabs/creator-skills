@@ -12,7 +12,7 @@ license: MIT
 compatibility: Python 3.9+ and ffmpeg. Best with a provider that accepts reference images.
 allowed-tools: Bash Read Write
 metadata:
-  version: "0.2.0"
+  version: "0.3.0"
   argument-hint: "<mode> <product photo or description> [--count n] [--ratio r]"
 ---
 

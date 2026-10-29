@@ -94,7 +94,12 @@ and their readings. Add tashkeel and rerun (`arabic-voice.md`).
 Only manual providers left → exit `3`, `status: needs_browser`, with `next` and the full
 `request` to reproduce in the browser. Follow `browser-<id>.md`, then `creator.py adopt`.
 
-Exit codes: `0` ok · `1` all failed · `2` bad usage · `3` needs browser · `4` policy block · `5` Arabic text needs tashkeel.
+**Speech verify.** `speech --verify` / `verify --audio A --text-file T` transcribe with the first
+available STT (ElevenLabs `scribe_v2` → OpenAI `gpt-4o-transcribe` → Gemini) and diff against
+the script after normalizing tashkeel, spelling variants and number words vs digits. Report
+only: `match`, or `check` with `differences` and `numbers_changed`.
+
+Exit codes: `0` ok · `1` all failed · `2` bad usage · `3` needs browser · `4` policy block · `5` Arabic text needs tashkeel · `6` verify found differences.
 
 ## Models
 

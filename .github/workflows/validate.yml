@@ -31,3 +31,5 @@ jobs:
           # music post-check: a short track is extended to the exact length
           ffmpeg -loglevel error -f lavfi -i "sine=f=220:d=60" -af volume=0.3 /tmp/m.mp3
           python3 -c "import sys; sys.path.insert(0,'shared/scripts'); import creator, pathlib; p=pathlib.Path('/tmp/m.mp3'); creator.check_music(p, 150, 60); d=float(creator._ffprobe(p,'format=duration')['format']['duration']); assert abs(d-150)<1, d"
+          # speech verify: number words and digits normalize to the same tokens; a lone fraction word stays a word
+          python3 -c "import sys; sys.path.insert(0,'shared/scripts'); import creator as c; assert c._norm_tokens('ثلاثمئة وخمسين مليار في ألفين وخمسة وعشرين')==c._norm_tokens('350 مليار في 2025'); assert c._norm_tokens('عُشر')!=c._norm_tokens('عشرة')"

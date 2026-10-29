@@ -35,8 +35,12 @@ provider (API, CLI or browser):
    lists bare risky words and their readings. `speech` runs the same check and stops with
    exit `5` (`needs_tashkeel`, nothing sent) until each listed word has at least one haraka.
    `--allow-ambiguous` exists for text you have checked by ear; don't use it to save time.
-4. **After generating,** for long scripts transcribe the audio back (any STT you have) and
-   diff it against the script: numbers and fractions first. Re-voice only the lines that changed.
+4. **After generating, verify by ear and by STT.** `speech --verify` (or
+   `creator.py verify --audio vo/01.mp3 --text-file vo/01.txt --lang ar`) transcribes the audio
+   (ElevenLabs Scribe → OpenAI → Gemini, whichever you have) and lists the words read
+   differently. Tashkeel, hamza/ta-marbuta spellings and spelled-out vs digit numbers are
+   normalized away («ثلاثمئة وخمسين» = 350), so what remains is worth a listen; `numbers_changed`
+   comes first. A changed number, fraction, name or negation = re-voice that line.
 
 The checker knows the common traps, not every word: you (the host) still read the script as
 a listener would and add tashkeel wherever two readings are possible.

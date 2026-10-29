@@ -139,7 +139,8 @@ The skill writes (or converts) your script **in the dialect's own spelling** —
 factor in sounding native — and has you approve the first line before generating the rest.
 Before any text reaches a TTS engine, words whose meaning depends on their vowels get
 tashkeel (ثُلُثا not ثلثا, عُشْر not عشر, دَيْن not دين); `speech` refuses Arabic text that
-leaves them bare, because a wrong guess changes the facts, not just the accent.
+leaves them bare, because a wrong guess changes the facts, not just the accent. `--verify`
+transcribes every take back and flags words read differently (numbers first).
 Guide: [`arabic-voice.md`](shared/references/arabic-voice.md)
 
 ## Connect your tools
@@ -220,7 +221,7 @@ python3 $S/creator.py plan --task speech --lang ar-EG          # route that woul
 python3 $S/creator.py image  --prompt "…" --ratio 16:9 --out out/hero.png
 python3 $S/creator.py video  --prompt "slow push-in" --start out/hero.png --out out/clip.mp4
 python3 $S/creator.py tashkeel-check --text-file vo.txt        # Arabic: words that need tashkeel first
-python3 $S/creator.py speech --text-file vo.txt --lang ar-EG --out out/vo.mp3
+python3 $S/creator.py speech --text-file vo.txt --lang ar-EG --verify --out out/vo.mp3   # STT check of the result
 python3 $S/creator.py music  --prompt "lo-fi, 80 bpm" --instrumental --duration 60 --out out/bed.mp3
 
 python3 $S/media.py text     --image out/hero.png --text "BIG\nIDEA" --align left --out out/thumb.png

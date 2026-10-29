@@ -10,7 +10,9 @@ python3 scripts/creator.py speech --text-file script.txt --out vo.mp3 [--lang ar
 the dialect; `--lang` picks dialect-aware routing and voices). **Add tashkeel to every word
 whose meaning depends on its vowels before sending it to any TTS**; `speech` refuses Arabic
 text with such words left bare (exit `5`), and `creator.py tashkeel-check --text-file F`
-lists them ahead of time.
+lists them ahead of time. Add `--verify` to transcribe the result back and list words the
+voice read differently from the script (`verify` block in the JSON; `creator.py verify` checks
+an existing file). Use it on every line of a long or fact-heavy script.
 
 - Write for the ear: short sentences, numbers as words when ambiguous ("twenty twenty-six"),
   spell out acronyms you want letter-by-letter ("A-P-I").

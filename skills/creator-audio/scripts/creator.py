@@ -11,13 +11,15 @@ Subcommands (all print JSON on stdout):
   sfx    --prompt P --out F      Sound effect.
   adopt  --src S --out F         Move a downloaded file into place, fixing format/extension.
   tashkeel-check --text T        Arabic words that must get tashkeel before TTS (speech runs it too).
+  verify --audio A --text T      Transcribe a voiceover (STT) and list words read differently (speech --verify).
 
 Keys are read from the environment, then ./.env, then ~/.config/creator-skills/.env
 (see connect.py to add them safely).
 
 Stdlib only (Python 3.9+). Exit codes: 0 ok, 1 all failed, 2 bad usage,
 3 needs a manual (browser) provider, 4 blocked by content policy,
-5 Arabic text needs tashkeel before TTS (nothing was sent).
+5 Arabic text needs tashkeel before TTS (nothing was sent),
+6 verify: the transcript differs from the script (listen to the listed differences).
 """
 from __future__ import annotations
 
@@ -1008,6 +1010,142 @@ def tashkeel_check(text: str) -> dict:
     return {"ambiguous": amb, "advice": advice}
 
 
+# --------------------------------------------------------------------------- speech verify (STT round-trip)
+# TTS can read a script wrong in ways that change facts (numbers, fractions, names). Transcribe the
+# audio back and diff it against the script. Report-only: the host re-voices the lines that changed.
+
+STT_ORDER = ("elevenlabs", "openai-api", "google-api")
+DEFAULT_MODELS["elevenlabs"]["stt"] = "scribe_v2"
+DEFAULT_MODELS["openai-api"]["stt"] = "gpt-4o-transcribe"
+DEFAULT_MODELS["google-api"]["stt"] = "gemini-flash-latest"
+_AR_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
+
+
+def _multipart(fields: dict, files: dict) -> tuple[bytes, str]:
+    boundary = uuid.uuid4().hex
+    body = b""
+    for k, v in fields.items():
+        body += f"--{boundary}\r\nContent-Disposition: form-data; name=\"{k}\"\r\n\r\n{v}\r\n".encode()
+    for k, path in files.items():
+        mime = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
+        body += (f"--{boundary}\r\nContent-Disposition: form-data; name=\"{k}\"; filename=\"{Path(path).name}\"\r\n"
+                 f"Content-Type: {mime}\r\n\r\n").encode() + Path(path).read_bytes() + b"\r\n"
+    return body + f"--{boundary}--\r\n".encode(), f"multipart/form-data; boundary={boundary}"
+
+
+def transcribe(path: Path, lang: str | None, cfg: dict) -> tuple[str, str]:
+    """Return (text, provider/model) from the first STT provider that works."""
+    errors = []
+    for pid in STT_ORDER:
+        if not detect_one(pid, cfg)["available"]:
+            continue
+        model = model_for(cfg, pid, "stt")
+        try:
+            if pid == "elevenlabs":
+                fields = {"model_id": model}
+                if lang:
+                    fields["language_code"] = lang.split("-")[0]
+                body, ctype = _multipart(fields, {"file": path})
+                req = urllib.request.Request("https://api.elevenlabs.io/v1/speech-to-text", data=body,
+                                             headers={**_eleven_headers(), "Content-Type": ctype})
+                return _send(req, 600)["text"], f"{pid}/{model}"
+            if pid == "openai-api":
+                fields = {"model": model, **({"language": lang.split("-")[0]} if lang else {})}
+                body, ctype = _multipart(fields, {"file": path})
+                req = urllib.request.Request("https://api.openai.com/v1/audio/transcriptions", data=body, headers={
+                    "Authorization": f"Bearer {os.environ['OPENAI_API_KEY']}", "Content-Type": ctype})
+                return _send(req, 600)["text"], f"{pid}/{model}"
+            mime, data = b64_file(str(path))
+            resp = http_json(f"{GOOGLE_BASE}/models/{model}:generateContent", {"contents": [{"parts": [
+                {"text": "Transcribe this audio verbatim, exactly as spoken, in its original language and "
+                         "script. Write numbers the way they are spoken. Output only the transcript."},
+                {"inline_data": {"mime_type": mime, "data": data}}]}]}, {"x-goog-api-key": google_key()}, 600)
+            text = "".join(p.get("text", "") for c in resp.get("candidates", [])
+                           for p in c.get("content", {}).get("parts", []))
+            if text.strip():
+                return text.strip(), f"{pid}/{model}"
+            raise ProviderError("failed", "empty transcript")
+        except (ProviderError, KeyError) as e:
+            errors.append(f"{pid}: {str(e)[:120]}")
+    raise ProviderError("unsupported", "no speech-to-text provider worked" + (f" ({'; '.join(errors)})" if errors else
+                        " (needs an ElevenLabs, OpenAI or Gemini key)"))
+
+
+# Arabic number words (normalized spelling: no harakat, ة→ه, أ/إ/آ→ا, ى→ي, ئ→ي) -> values, so a
+# script that spells numbers out compares equal to an STT transcript that writes digits.
+_UNITS = {"واحد": 1, "واحده": 1, "احد": 1, "احدي": 1, "اثنان": 2, "اثنين": 2, "اثنتان": 2, "اثنتين": 2,
+          "اثنا": 2, "اثني": 2, "ثلاث": 3, "ثلاثه": 3, "اربع": 4, "اربعه": 4, "خمس": 5, "خمسه": 5, "ست": 6,
+          "سته": 6, "سبع": 7, "سبعه": 7, "ثمان": 8, "ثماني": 8, "ثمانيه": 8, "تسع": 9, "تسعه": 9, "عشر": 10, "عشره": 10}
+_TENS = {"عشرون": 20, "عشرين": 20, "ثلاثون": 30, "ثلاثين": 30, "اربعون": 40, "اربعين": 40, "خمسون": 50,
+         "خمسين": 50, "ستون": 60, "ستين": 60, "سبعون": 70, "سبعين": 70, "ثمانون": 80, "ثمانين": 80,
+         "تسعون": 90, "تسعين": 90}
+_HUNDREDS = {"ميه": 100, "مايه": 100, "ميتان": 200, "ميتين": 200, "مايتان": 200, "مايتين": 200}
+for _w, _v in (("ثلاث", 3), ("اربع", 4), ("خمس", 5), ("ست", 6), ("سبع", 7), ("ثمان", 8), ("ثماني", 8), ("تسع", 9)):
+    _HUNDREDS[_w + "ميه"] = _HUNDREDS[_w + "مايه"] = _v * 100
+_THOUSANDS = {"الف": 1000, "الفا": 1000, "الفان": 2000, "الفين": 2000, "الاف": 1000}
+_SCALE_CANON = {"مليون": "مليون", "مليونا": "مليون", "ملايين": "مليون", "مليونان": "مليون", "مليونين": "مليون",
+                "مليار": "مليار", "مليارا": "مليار", "مليارات": "مليار", "ملياران": "مليار", "مليارين": "مليار"}
+
+
+def _num_value(w: str) -> tuple[str, int] | None:
+    for word in (w, w[1:] if w.startswith("و") and len(w) > 2 else None):
+        if not word:
+            continue
+        for kind, table in (("u", _UNITS), ("t", _TENS), ("h", _HUNDREDS), ("k", _THOUSANDS)):
+            if word in table:
+                return kind, table[word]
+    return None
+
+
+def _fold_numbers(tokens: list[str]) -> list[str]:
+    out, i = [], 0
+    while i < len(tokens):
+        if not _num_value(tokens[i]):
+            out.append(_SCALE_CANON.get(tokens[i], tokens[i])); i += 1; continue
+        nv0 = _num_value(tokens[i])
+        nxt = tokens[i + 1] if i + 1 < len(tokens) else ""
+        if nv0[0] == "u" and not (_num_value(nxt) or nxt in _SCALE_CANON):
+            out.append(tokens[i]); i += 1; continue     # lone unit word: keep (عُشر ≠ عشرة must stay visible)
+        total = cur = 0
+        while i < len(tokens) and (nv := _num_value(tokens[i])):
+            kind, v = nv
+            if kind == "k":
+                total += (cur or 1) * v if v == 1000 else v
+                cur = 0
+            elif kind == "u" and v == 10 and 0 < cur < 10:
+                cur += 10                                   # سبعة عشر = 17
+            elif kind == "h" and v == 100 and 0 < cur < 10:
+                cur *= 100                                  # ثلاث مئة = 300
+            else:
+                cur += v
+            i += 1
+        out.append(str(total + cur))
+    return out
+
+
+def _norm_tokens(text: str) -> list[str]:
+    t = _HARAKAT.sub("", text).replace("ـ", "").translate(_AR_DIGITS)
+    t = re.sub("[أإآٱ]", "ا", t).replace("ى", "ي").replace("ة", "ه").replace("ؤ", "و").replace("ئ", "ي")
+    t = re.sub(r"(?<=\d)[,٬](?=\d{3})", "", t)
+    return _fold_numbers([w for w in re.split(r"[^\w%]+", t.lower()) if w])
+
+
+def verify_speech(path: Path, script: str, lang: str | None, cfg: dict) -> dict:
+    import difflib
+    heard, by = transcribe(path, lang, cfg)
+    a, b = _norm_tokens(script), _norm_tokens(heard)
+    sm = difflib.SequenceMatcher(a=a, b=b, autojunk=False)
+    diffs = [{"script": " ".join(a[i1:i2]), "heard": " ".join(b[j1:j2])}
+             for op, i1, i2, j1, j2 in sm.get_opcodes() if op != "equal"]
+    numeric = [d for d in diffs if re.search(r"\d", d["script"] + d["heard"])]
+    ratio = round(sm.ratio(), 3)
+    return {"status": "match" if not diffs else "check", "similarity": ratio, "by": by, "heard": heard,
+            "differences": diffs[:40], "numbers_changed": numeric[:20],
+            "advice": "Listen to each difference. Digits vs number-words and spelling variants are usually "
+                      "fine; a changed number, fraction, name or negation is a misreading: add tashkeel or "
+                      "rephrase that line and re-voice it." if diffs else "Transcript matches the script."}
+
+
 # --------------------------------------------------------------------------- output checks (local ffmpeg)
 
 LONG_EDGE = {"1k": 1024, "2k": 2048, "4k": 3840}
@@ -1165,6 +1303,11 @@ def run_task(task: str, a, cfg) -> int:
                     result["notes"] = notes
                 if getattr(a, "tashkeel_advice", None):
                     result["tashkeel_advice"] = a.tashkeel_advice
+                if task == "speech" and getattr(a, "verify", False):
+                    try:
+                        result["verify"] = verify_speech(Path(path), a.text, a.lang, cfg)
+                    except ProviderError as e:
+                        result["verify"] = {"status": "not_checked", "detail": str(e)[:300]}
                 if post:
                     result["post"] = post
                 print(json.dumps(result, indent=2, ensure_ascii=False))
@@ -1254,7 +1397,15 @@ def main() -> int:
     sp.add_argument("--speed", type=float)
     sp.add_argument("--allow-ambiguous", action="store_true",
                     help="skip the Arabic tashkeel gate (not recommended)")
+    sp.add_argument("--verify", action="store_true",
+                    help="transcribe the result back (STT) and report words read differently from the script")
     _common(sp)
+
+    vp2 = sub.add_parser("verify", help="transcribe a voiceover and diff it against its script")
+    vp2.add_argument("--audio", required=True, type=Path)
+    vp2.add_argument("--text")
+    vp2.add_argument("--text-file", type=Path)
+    vp2.add_argument("--lang")
 
     tp = sub.add_parser("tashkeel-check", help="list Arabic words that need tashkeel before TTS")
     tp.add_argument("--text")
@@ -1297,6 +1448,18 @@ def main() -> int:
         print(json.dumps({"status": "needs_tashkeel" if chk["ambiguous"] else "ok", **chk},
                          ensure_ascii=False, indent=2))
         return 5 if chk["ambiguous"] else 0
+    if a.cmd == "verify":
+        txt = a.text_file.read_text() if a.text_file else (a.text or "")
+        if not txt or not a.audio.is_file():
+            print(json.dumps({"status": "error", "detail": "--audio file and --text/--text-file required"}))
+            return 2
+        try:
+            res = verify_speech(a.audio, txt, a.lang, cfg)
+        except ProviderError as e:
+            print(json.dumps({"status": "not_checked", "detail": str(e)[:300]}, ensure_ascii=False))
+            return 1
+        print(json.dumps(res, ensure_ascii=False, indent=2))
+        return 0 if res["status"] == "match" else 6
     if a.cmd == "adopt":
         src = a.src.expanduser()
         if not src.is_file():

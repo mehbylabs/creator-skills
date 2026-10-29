@@ -14,7 +14,7 @@ license: MIT
 compatibility: Python 3.9+. Works with any subset of the supported providers.
 allowed-tools: Bash Read Write
 metadata:
-  version: "0.2.0"
+  version: "0.3.0"
   argument-hint: "[profile|order|disable|voices|brand|enable-browser]"
 ---
 

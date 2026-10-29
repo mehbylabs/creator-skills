@@ -12,7 +12,7 @@ license: MIT
 compatibility: Python 3.9+ and ffmpeg. Needs at least one image provider.
 allowed-tools: Bash Read Write
 metadata:
-  version: "0.2.0"
+  version: "0.3.0"
   argument-hint: "<video title/topic> [--face photo] [--text 'HEADLINE'] [--vertical]"
 ---
 
